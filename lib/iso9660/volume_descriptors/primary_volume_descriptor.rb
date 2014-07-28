@@ -32,6 +32,7 @@ class Iso
       attr_writer :volume_datetime_expires
       attr_writer :volume_datetime_effective
       attr_writer :file_structure_version
+      attr_writer :application_used
       def start_pos
         @start_pos ||= nil
       end
@@ -136,6 +137,10 @@ class Iso
         @file_structure_version ||= nil
       end
 
+      def application_used
+        @application_used ||= nil
+      end
+      
       def initialize(buffer = "", start_pos = nil, end_pos = nil)
         @start_pos = start_pos
         @end_pos = end_pos
@@ -164,7 +169,7 @@ class Iso
         @volume_datetime_expires = buffer[847, 17].unpack_binary_string
         @volume_datetime_effective = buffer[864, 17].unpack_binary_string
         @file_structure_version = buffer[881].unpack_unsigned_char
-        @application_used = buffer[883, 512]
+        @application_used = buffer[883, 512].unpack_binary_string
       end
     end
   end
