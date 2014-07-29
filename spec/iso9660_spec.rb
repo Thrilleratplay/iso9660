@@ -8,6 +8,9 @@ describe Iso9660 do
     iso = Iso.new(stream)
     #expect(iso.boot.boot_system_identifier).to eq("EL TORITO SPECIFICATION")
     
-    iso.files.each{|x| puts x}
+    iso.file_struct.directories.each{|x| 
+      puts x.name
+      x.files.each{|y| puts "\t#{y.name}"}
+      }
   end
 end
