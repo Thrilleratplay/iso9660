@@ -12,6 +12,7 @@ class Iso
     }
    
   class DirectoryMetadata < Hashie::Dash
+    property :extended_attribute_length
     property :location_of_extent
     property :parent_directory_index
     property :name
@@ -20,6 +21,7 @@ class Iso
   end 
     
   class FileMetadata < Hashie::Dash
+    property :extended_attribute_length    
     property :location_of_extent                # offset: 2, size:8
     property :size_of_extent                    # offset: 10, size:8
     property :recording_datetime                # offset: 18, size:7
@@ -34,26 +36,30 @@ class Iso
   class FileStructure
     attr_accessor :directories
     
-    def initialize
+    def initialize(stream = nil, pt_loc = 0, pt_size = 0, block_size = 2048)
       @directories = []
+      
+      if !stream.nil?
+        self.parse_path_table(stream, pt_loc, pt_size, block_size)
+      end
     end
     
-    def parse_path_table(stream, path_table_loc, path_table_size, logical_block_size = 2048)
-      stream.pos = path_table_loc * logical_block_size
+    def parse_path_table(stream, pt_loc, pt_size, block_size)
+      stream.pos = pt_loc * block_size
       
-      path_buffer = stream.read(path_table_size)
-      while path_buffer.length > 0
-        path = DirectoryMetadata.new
+      pbuf = stream.read(pt_size)
+      while pbuf.length > 0
+        desc_len = pbuf[0].unpack_char
         
-        desc_length = path_buffer[0].unpack_unsigned_char
-        #path[:Extended_Attribute_length] = buffer[offset+1, 2].unpack_little_uint32
-        path.location_of_extent = path_buffer[2, 4].unpack_little_uint32
-        path.parent_directory_index = path_buffer[6, 2].unpack_native_uint16
-        path.name = path_buffer[8, desc_length].unpack_binary_string
+        path = DirectoryMetadata.new
+        path.extended_attribute_length = pbuf[1, 2].unpack_uint16
+        path.location_of_extent = pbuf[2, 4].unpack_uint32le
+        path.parent_directory_index = pbuf[6, 2].unpack_uint16
+        path.name = pbuf[8, desc_len].unpack_string
 
         #find files
-        stream.pos = path.location_of_extent * logical_block_size
-        path.files = parse_directory_sector(stream.read(logical_block_size))
+        stream.pos = path.location_of_extent * block_size
+        path.files = parse_directory_sector(stream.read(block_size))
       
         @directories.push(path)
       
@@ -63,50 +69,57 @@ class Iso
         # +2 Directory number of parent directory
         # +X Length of description
         # +1 only if the length of the description is odd
-        path_buffer = path_buffer[8 + desc_length + (desc_length % 2)..-1]
+        pbuf = pbuf[8 + desc_len + (desc_len % 2)..-1]
       end
     end      
 
     
-    def parse_directory_sector(buffer)
+    def parse_directory_sector(fbuf)
       files = []
       
-
-      while buffer.length > 0
+      while fbuf.length > 0
         # Length of Directory Record.
-        record_length = buffer[0].unpack_unsigned_char
+        record_len= fbuf[0].unpack_char
 
-        if record_length == 0
-          buffer = buffer[1..-1]
+        if record_len == 0
+          fbuf = fbuf[1..-1]
         else
           file = FileMetadata.new 
-          #extended_Attribute_length = buffer[1].unpack_unsigned_char
-          lba = buffer[2, 8].unpack_native_uint32
-          
-          file.size_of_extent = buffer[10, 8].unpack_native_uint32
-          file.recording_datetime = buffer[18, 7].unpack_little_uint32
+          file.extended_attribute_length = fbuf[1].unpack_char  
+          file.location_of_extent = fbuf[2, 8].unpack_uint32 
+          file.size_of_extent = fbuf[10, 8].unpack_uint32
+          file.recording_datetime = fbuf[18, 7].unpack_uint32le
 
-          file.file_attribute = FILE_FLAGS[buffer[25].unpack_unsigned_char]
-          file.interleaved_unit_size = buffer[26].unpack_unsigned_char
-          file.interleaved_gap_size = buffer[27].unpack_unsigned_char
-          file.volume_sequence_number = buffer[28, 4].unpack_native_uint16
+          file.file_attribute = FILE_FLAGS[fbuf[25].unpack_char]
+          file.interleaved_unit_size = fbuf[26].unpack_char
+          file.interleaved_gap_size = fbuf[27].unpack_char
+          file.volume_sequence_number = fbuf[28, 4].unpack_uint16
 
-          file_name_length = buffer[32].unpack_unsigned_char
+          file_name_length = fbuf[32].unpack_char
 
-          file.name = buffer[33, file_name_length].unpack_binary_string.split(';').first
+          file.name = fbuf[33, file_name_length].unpack_string.split(';').first
 
           system_use_start = 34 + file_name_length - (file_name_length % 2)
-          system_use_length = (record_length - system_use_start > 255) ? 255 : (record_length - system_use_start )
-
-          file.system_use = buffer[system_use_start, system_use_length]
+          system_use_len = if (record_len - system_use_start > 255)
+                             255
+                           else 
+                             record_len - system_use_start
+                           end
+          file.system_use = fbuf[system_use_start, system_use_len]
+          
+          # Exclude "." and ".." from directory listings
           if (file.name != "\x01" && !file.name.nil?)
             files.push(file)
           end
-          buffer = buffer[record_length..-1]
+          fbuf = fbuf[record_len..-1]
         end
       end
       
       files
+    end
+    
+    def extract_all
+     # @directories.each{|dir| }
     end
   end
 end

@@ -6,7 +6,7 @@ module ByteOrderHelpers
     #   - +self+ -> String
     # * *Returns* :
     #   - unpacked integer or nil 
-    def unpack_unsigned_char
+    def unpack_char
       self.unpack("C").first ||= nil
     end
 
@@ -16,7 +16,7 @@ module ByteOrderHelpers
     #   - +self+ -> String
     # * *Returns* :
     #   - unpacked integer or nil     
-    def unpack_native_uint16
+    def unpack_uint16
       self.unpack("S").first ||= nil
     end
 
@@ -26,7 +26,7 @@ module ByteOrderHelpers
     #   - +self+ -> String
     # * *Returns* :
     #   - unpacked integer or nil     
-    def unpack_native_uint32
+    def unpack_uint32
       self.unpack("L").first ||= nil
     end
 
@@ -36,7 +36,7 @@ module ByteOrderHelpers
     #   - +self+ -> String
     # * *Returns* :
     #   - unpacked integer or nil     
-    def unpack_big_uint32
+    def unpack_uint32be
       self.unpack("N").first ||= nil
     end
 
@@ -46,7 +46,7 @@ module ByteOrderHelpers
     #   - +self+ -> String
     # * *Returns* :
     #   - unpacked integer or nil     
-    def unpack_little_uint32
+    def unpack_uint32le
       self.unpack("V").first ||= nil
     end
 
@@ -56,19 +56,23 @@ module ByteOrderHelpers
     #   - +self+ -> String
     # * *Returns* :
     #   - unpacked integer or nil     
-    def unpack_binary_string
+    def unpack_string
       self.unpack("A#{self.length}").first ||= nil
     end
   end
   
   class << self
-    attr_writer :endianness
+    attr_writer :endian
     
-    def endianness
-      @endianness ||= native_endian
+    def endian
+      @endian ||= native_endian
     end
     
     private
+    # Determine system endianness
+    #
+    # * *Returns* :
+    #   - :big or :little     
     def native_endian
       if "\0\1".unpack("s").first == 1
         :big

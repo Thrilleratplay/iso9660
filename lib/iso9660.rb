@@ -22,8 +22,8 @@ class Iso
   attr_reader :file_struct
 
   attr_accessor :boot
-  attr_accessor :primary_volume_descriptor
-  attr_accessor :supplementary
+  attr_accessor :pvd # Primary Volume Descriptor
+  attr_accessor :svd # svd Volume Descriptor
   attr_accessor :partition
   attr_accessor :terminator
 
@@ -34,10 +34,10 @@ class Iso
   # * *Raises* :
   #   - +Error+ -> if system endianness cannot be determined
   def initialize(stream = nil)
-    @endianness ||= ByteOrderHelpers::endianness
+    @endian ||= ByteOrderHelpers::endian
 
     if !stream.nil?
-      @logical_block_size ||= 2048
+      @block_size ||= 2048
       @stream = stream
       read
     end
@@ -53,42 +53,37 @@ class Iso
 
     while (!@stream.eof? && @terminator.nil?)
       start_pos = @stream.pos
-      buffer = @stream.read(@logical_block_size)
-      type, identifier = buffer.unpack("CA5")
+      buff = @stream.read(@block_size)
+      type, identifier = buff.unpack("CA5")
 
       if identifier == "CD001"
 
         case type
         when BOOT_RECORD
-          @boot = Boot.new(buffer,start_pos,stream.pos-1)
+          @boot = Boot.new(buff,start_pos,stream.pos-1)
         when PRIMARY_VOLUME_DESCRIPTOR
-          @primary_volume_descriptor = PrimaryVolumeDescriptor.new(buffer,start_pos,stream.pos-1)
-          @logical_block_size = @primary_volume_descriptor.logical_block_size
+          @pvd = PrimaryVolumeDescriptor.new(buff,start_pos,stream.pos-1)
+          @block_size = @pvd.block_size
         when SUPPLEMENTARY_VOLUME_DESCRIPTOR
           #TODO incomplete
-          @supplementary = SupplementaryVolumeDescriptor.new(buffer,start_pos,stream.pos-1)
+          @svd = SupplementaryVolumeDescriptor.new(buff,start_pos,stream.pos-1)
         when VOLUME_PARTITION
           #TODO incomplete
-          @partition = VolumePartition.new(buffer,start_pos,stream.pos-1)
+          @partition = VolumePartition.new(buff,start_pos,stream.pos-1)
         when TERMINATOR
-          @terminator = Terminator.new(buffer,start_pos,stream.pos-1)
+          @terminator = Terminator.new(buff,start_pos,stream.pos-1)
         end
       end
     end
     
-    scan_directories
-  end
-  
-  def scan_directories
-    path_table_loc = if @endianness == :little
-                       @primary_volume_descriptor.path_table_l_loc 
+    path_table_loc = if @endian == :little
+                       @pvd.path_table_l_loc 
                      else
-                       @primary_volume_descriptor.path_table_m_loc
+                       @pvd.path_table_m_loc
                      end
-             
-  
-    @file_struct.parse_path_table(@stream, path_table_loc, @primary_volume_descriptor.path_table_size, @logical_block_size)
+    @file_struct=FileStructure.new(@stream, path_table_loc, @pvd.path_table_size, @block_size)
   end
+
 
   # stream dump if stream set
   #
