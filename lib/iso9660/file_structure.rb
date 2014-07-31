@@ -1,14 +1,16 @@
 require "hashie"
+require "tmpdir"
+require 'fileutils'
 require "iso9660/byte_order_helpers"
 
 class Iso
     FILE_FLAGS = {
-      0 => :hidden,
-      1 => :directory,
-      2 => :associated_file,
-      3 => :extended_attribute_format_information,
-      4 => :extended_attribute_permissions,
-      7 => :not_final_entry
+      "\x01" => :hidden,
+      "\x02" => :directory,
+      "\x04" => :associated_file,
+      "\x08" => :extended_attribute_format_information,
+      "\x10" => :extended_attribute_permissions,
+      "\x80" => :not_final_entry
     }
    
   class DirectoryMetadata < Hashie::Dash
@@ -38,7 +40,7 @@ class Iso
     
     def initialize(stream = nil, pt_loc = 0, pt_size = 0, block_size = 2048)
       @directories = []
-      
+
       if !stream.nil?
         self.parse_path_table(stream, pt_loc, pt_size, block_size)
       end
@@ -60,7 +62,7 @@ class Iso
         #find files
         stream.pos = path.location_of_extent * block_size
         path.files = parse_directory_sector(stream.read(block_size))
-      
+
         @directories.push(path)
       
         # +1 Length of Directory Identifier
@@ -90,7 +92,7 @@ class Iso
           file.size_of_extent = fbuf[10, 8].unpack_uint32
           file.recording_datetime = fbuf[18, 7].unpack_uint32le
 
-          file.file_attribute = FILE_FLAGS[fbuf[25].unpack_char]
+          file.file_attribute = FILE_FLAGS[fbuf[25]]
           file.interleaved_unit_size = fbuf[26].unpack_char
           file.interleaved_gap_size = fbuf[27].unpack_char
           file.volume_sequence_number = fbuf[28, 4].unpack_uint16
@@ -100,7 +102,7 @@ class Iso
           file.name = fbuf[33, file_name_length].unpack_string.split(';').first
 
           system_use_start = 34 + file_name_length - (file_name_length % 2)
-          system_use_len = if (record_len - system_use_start > 255)
+          system_use_len = if (record_len - system_use_start) > 255
                              255
                            else 
                              record_len - system_use_start
@@ -109,6 +111,7 @@ class Iso
           
           # Exclude "." and ".." from directory listings
           if (file.name != "\x01" && !file.name.nil?)
+            file.name.sub!(/\.$/, '')
             files.push(file)
           end
           fbuf = fbuf[record_len..-1]
@@ -118,8 +121,19 @@ class Iso
       files
     end
     
-    def extract_all
-     # @directories.each{|dir| }
+    def extract_all(root_dir, stream, block_size)
+      # TODO rewrite recursive
+      tmpdir = root_dir | Dir.mktmpdir
+      tmpdir = "./tmp"
+      @directories.each{ |dir| 
+        FileUtils.mkdir_p "#{tmpdir}#{dir.full_path}"
+        dir.files.each{|file|
+          stream.pos = file.location_of_extent * block_size
+          if !File.exist?("#{tmpdir}#{dir.full_path}/#{file.name}")
+            IO.binwrite("#{tmpdir}#{dir.full_path}/#{file.name}", stream.read(file.size_of_extent))
+          end
+        }
+      }
     end
   end
 end

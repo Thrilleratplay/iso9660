@@ -23,7 +23,7 @@ class Iso
 
   attr_accessor :boot
   attr_accessor :pvd # Primary Volume Descriptor
-  attr_accessor :svd # svd Volume Descriptor
+  attr_accessor :svd # Supplementary Volume Descriptor
   attr_accessor :partition
   attr_accessor :terminator
 
@@ -82,6 +82,7 @@ class Iso
                        @pvd.path_table_m_loc
                      end
     @file_struct=FileStructure.new(@stream, path_table_loc, @pvd.path_table_size, @block_size)
+   # @file_struct.extract_all(@stream, @block_size)
   end
 
 
