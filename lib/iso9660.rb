@@ -12,7 +12,7 @@ require "iso9660/byte_order_helpers"
 
 class Iso
   include VolumeDescriptor
-  include ByteOrderHelpers 
+  include ByteOrderHelpers
   # 32 byte system data size
   SYSTEM_DATA = 0x8000
 
@@ -47,37 +47,37 @@ class Iso
   def read
     # Start after the 32KB Unused System Data area
     @stream.pos = SYSTEM_DATA
-    
+
     @file_struct = FileStructure.new
     @terminator = nil
 
     while (!@stream.eof? && @terminator.nil?)
       start_pos = @stream.pos
-      buff = @stream.read(@block_size)
-      type, identifier = buff.unpack("CA5")
+      buf = @stream.read(@block_size)
+      type, identifier = buf.unpack("CA5")
 
       if identifier == "CD001"
 
         case type
         when BOOT_RECORD
-          @boot = Boot.new(buff,start_pos,stream.pos-1)
+          @boot = Boot.new(buf,start_pos,stream.pos-1)
         when PRIMARY_VOLUME_DESCRIPTOR
-          @pvd = PrimaryVolumeDescriptor.new(buff,start_pos,stream.pos-1)
+          @pvd = PrimaryVolumeDescriptor.new(buf,start_pos,stream.pos-1)
           @block_size = @pvd.block_size
         when SUPPLEMENTARY_VOLUME_DESCRIPTOR
           #TODO incomplete
-          @svd = SupplementaryVolumeDescriptor.new(buff,start_pos,stream.pos-1)
+          @svd = SupplementaryVolumeDescriptor.new(buf,start_pos,stream.pos-1)
         when VOLUME_PARTITION
           #TODO incomplete
-          @partition = VolumePartition.new(buff,start_pos,stream.pos-1)
+          @partition = VolumePartition.new(buf,start_pos,stream.pos-1)
         when TERMINATOR
-          @terminator = Terminator.new(buff,start_pos,stream.pos-1)
+          @terminator = Terminator.new(buf,start_pos,stream.pos-1)
         end
       end
     end
-    
+
     path_table_loc = if @endian == :little
-                       @pvd.path_table_l_loc 
+                       @pvd.path_table_l_loc
                      else
                        @pvd.path_table_m_loc
                      end
