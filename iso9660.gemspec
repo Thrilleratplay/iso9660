@@ -17,9 +17,11 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
+  s.required_ruby_version = ">= 1.9.3"
+
   spec.add_development_dependency "bundler", "~> 1.6"
   spec.add_development_dependency "rake"
   spec.add_development_dependency "rspec"
-  
-  spec.add_runtime_dependency "hashie"
+
+  spec.add_runtime_dependency "virtus"
 end

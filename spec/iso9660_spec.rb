@@ -6,11 +6,12 @@ describe Iso9660 do
   it "check boot system identifier" do
     stream = File.open(File.dirname(__FILE__)  + '/boot2docker.iso', "rb+")
     iso = Iso.new(stream)
-    expect(iso.boot.boot_system_identifier).to eq("EL TORITO SPECIFICATION")
-    
-    iso.file_struct.directories.each{|x| 
-      #puts x.name,x.parent_directory_index
-      x.files.each{|y| puts "#{y}"}
-      }
+    expect(iso.boot.boot_system_id).to eq("EL TORITO SPECIFICATION")
+
+    #using it for debugging..
+    iso.file_struct.directories.each{|x|
+      puts x.name
+      x.files.each{|y| puts "\t#{y.inspect}"}
+     }
   end
 end

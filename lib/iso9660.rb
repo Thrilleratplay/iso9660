@@ -1,24 +1,23 @@
 require "iso9660/version"
 require "iso9660/file_structure"
 
+require "iso9660/byte_order_attributes"
+
 require "iso9660/volume_descriptors/boot"
 require "iso9660/volume_descriptors/primary_volume_descriptor"
 require "iso9660/volume_descriptors/supplementary_volume_descriptor"
 require "iso9660/volume_descriptors/volume_partition"
 require "iso9660/volume_descriptors/terminator"
 
-require "iso9660/byte_order_helpers"
-
-
 class Iso
   include VolumeDescriptor
-  include ByteOrderHelpers
+  include Endianness
   # 32 byte system data size
   SYSTEM_DATA = 0x8000
 
   attr_reader :stream
   attr_writer :logical_block_size
-  attr_writer :endianness
+  attr_writer :endian
   attr_reader :file_struct
 
   attr_accessor :boot
@@ -34,7 +33,7 @@ class Iso
   # * *Raises* :
   #   - +Error+ -> if system endianness cannot be determined
   def initialize(stream = nil)
-    @endian ||= ByteOrderHelpers::endian
+    @endian ||= Endianness::endian
 
     if !stream.nil?
       @block_size ||= 2048
@@ -48,7 +47,7 @@ class Iso
     # Start after the 32KB Unused System Data area
     @stream.pos = SYSTEM_DATA
 
-    @file_struct = FileStructure.new
+    #@file_struct = FileStructure.new
     @terminator = nil
 
     while (!@stream.eof? && @terminator.nil?)
@@ -57,7 +56,6 @@ class Iso
       type, identifier = buf.unpack("CA5")
 
       if identifier == "CD001"
-
         case type
         when BOOT_RECORD
           @boot = Boot.new(buf,start_pos,stream.pos-1)
